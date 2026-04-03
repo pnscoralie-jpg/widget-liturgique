@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Liturgie du jour</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Cormorant+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --cream: #faf8f3; --ink: #1a1612; --ink-soft: #3d3530;
+      --ink-muted: #7a6f65; --gold: #b8922a; --gold-pale: #f5edda;
+      --border: #ddd5c0; --red: #8b2020;
+    }
+    html, body { width: 100%; background: var(--cream); font-family: 'EB Garamond', Georgia, serif; color: var(--ink); }
+    .widget { max-width: 680px; margin: 0 auto; padding-bottom: 2rem; }
+    .header { padding: 1.6rem 1.8rem 1.2rem; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 0.9rem; flex-wrap: wrap; }
+    .header-cross { color: var(--gold); font-size: 1rem; }
+    .header-date { font-family: 'Cormorant SC', serif; font-size: 0.7rem; letter-spacing: 0.18em; color: var(--ink-muted); text-transform: uppercase; }
+    .header-couleur { margin-left: auto; font-size: 0.78rem; font-style: italic; color: var(--red); }
+    .saint-band { background: var(--gold-pale); border-bottom: 1px solid var(--border); padding: 0.7rem 1.8rem; display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+    .saint-label { font-family: 'Cormorant SC', serif; font-size: 0.62rem; letter-spacing: 0.2em; color: var(--gold); text-transform: uppercase; flex-shrink: 0; }
+    .saint-name { font-size: 1rem; font-weight: 500; color: var(--ink-soft); }
+    .section { padding: 1.5rem 1.8rem; border-bottom: 1px solid var(--border); animation: fadeIn 0.5s ease both; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .section-label { font-family: 'Cormorant SC', serif; font-size: 0.62rem; letter-spacing: 0.22em; color: var(--gold); text-transform: uppercase; margin-bottom: 0.35rem; }
+    .section-ref { font-size: 0.85rem; font-style: italic; color: var(--ink-muted); margin-bottom: 0.9rem; }
+    .verse-block { position: relative; padding-left: 1.1rem; }
+    .verse-block::before { content: ''; position: absolute; left: 0; top: 0.3em; bottom: 0.3em; width: 2px; background: linear-gradient(to bottom, var(--gold), transparent); border-radius: 1px; }
+    .verse-text { font-size: 1.05rem; line-height: 1.9; color: var(--ink-soft); font-style: italic; white-space: pre-line; }
+    .toggle-btn { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.9rem; background: none; border: 1px solid var(--border); border-radius: 2px; padding: 0.3rem 0.7rem; font-family: 'Cormorant SC', serif; font-size: 0.62rem; letter-spacing: 0.15em; color: var(--ink-muted); cursor: pointer; transition: all 0.2s; }
+    .toggle-btn:hover { border-color: var(--gold); color: var(--gold); }
+    .arrow { transition: transform 0.3s; display: inline-block; }
+    .open .arrow { transform: rotate(180deg); }
+    .extra { display: none; font-size: 1.05rem; line-height: 1.9; color: var(--ink-soft); font-style: italic; margin-top: 0.6rem; white-space: pre-line; animation: fadeIn 0.4s ease both; }
+    .extra.visible { display: block; }
+    .loading { padding: 2.5rem 1.8rem; text-align: center; font-style: italic; color: var(--ink-muted); font-size: 0.95rem; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 0.8rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-msg { padding: 1.5rem 1.8rem; color: var(--red); font-style: italic; font-size: 0.9rem; }
+    .footer { padding: 0.6rem 1.8rem 0; text-align: right; }
+    .footer span { font-size: 0.7rem; font-style: italic; color: var(--ink-muted); opacity: 0.6; }
+    .ornament { text-align: center; color: var(--gold); font-size: 0.75rem; letter-spacing: 0.4em; padding: 0.6rem 0 0; opacity: 0.45; }
+  </style>
+</head>
+<body>
+<div class="widget" id="widget">
+  <div class="loading"><div class="spinner"></div><br>Chargement des lectures…</div>
+</div>
+  <script>
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function todayFr(){ return new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}); }
+  function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+  function firstNWords(text,n){ const w=text.trim().split(/\s+/); if(w.length<=n) return {preview:text,rest:''}; return {preview:w.slice(0,n).join(' ')+'\u00a0\u2026',rest:w.slice(n).join(' ')}; }
+  let _uid=0;
+  function buildSection(label,ref,text){
+    if(!text||!text.trim()) return '';
+    const uid='u'+(++_uid);
+    const {preview,rest}=firstNWords(text.trim(),70);
+    const hasMore=rest.length>0;
+    return `<div class="section"><div class="section-label">${label}</div>${ref?`<div class="section-ref">${ref}</div>`:''}<div class="verse-block"><p class="verse-text">${preview}</p>${hasMore?`<p class="extra" id="ex-${uid}">${rest}</p>`:''}</div>${hasMore?`<button class="toggle-btn" id="btn-${uid}" onclick="doToggle('${uid}')"><span class="lbl">Lire la suite</span><span class="arrow">▾</span></button>`:''}</div>`;
+  }
+  window.doToggle=function(uid){
+    const ex=document.getElementById('ex-'+uid);
+    const btn=document.getElementById('btn-'+uid);
+    const open=ex.classList.toggle('visible');
+    btn.classList.toggle('open',open);
+    btn.querySelector('.lbl').textContent=open?'Réduire':'Lire la suite';
+  };
+  function extractJSON(raw){
+    const fence=raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if(fence) return fence[1].trim();
+    const s=raw.indexOf('{'), e=raw.lastIndexOf('}');
+    if(s!==-1&&e!==-1&&e>s) return raw.slice(s,e+1);
+    return raw.trim();
+async function fetchLiturgy(){
+    const today=todayISO();
+    const prompt=`Nous sommes le ${today}. Donne-moi les informations liturgiques catholiques exactes de ce jour selon le calendrier romain catholique. Réponds UNIQUEMENT avec un objet JSON, sans aucun texte avant ou après, sans balises markdown. Structure exacte : {"saint":"...","couleur":"...","evangile_ref":"...","evangile_texte":"...","psaume_ref":"...","psaume_texte":"..."} - saint : nom(s) du ou des saints fêtés ce jour - couleur : temps liturgique - evangile_ref : référence précise - evangile_texte : texte intégral en français sans HTML - psaume_ref : référence du psaume - psaume_texte : refrain et quelques versets en français`;
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:prompt}]})
+    });
+    if(!res.ok){ const err=await res.text(); throw new Error(`API ${res.status}: ${err.slice(0,200)}`); }
+    const data=await res.json();
+    const raw=data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    const jsonStr=extractJSON(raw);
+    try{ return JSON.parse(jsonStr); }
+    catch(e){ throw new Error('Parse: '+jsonStr.slice(0,100)); }
+  }
+  function render(d){
+    document.getElementById('widget').innerHTML=`
+      <div class="header"><span class="header-cross">✦</span><span class="header-date">${todayFr()}</span>${d.couleur?`<span class="header-couleur">${d.couleur}</span>`:''}</div>
+      <div class="saint-band"><span class="saint-label">Fête</span><span class="saint-name">${d.saint||'—'}</span></div>
+      ${buildSection('Évangile du jour',d.evangile_ref,d.evangile_texte)}
+      ${buildSection('Psaume',d.psaume_ref,d.psaume_texte)}
+      <div class="footer"><span>Calendrier liturgique catholique romain</span></div>
+      <div class="ornament">· · ✦ · ·</div>`;
+  }
+  function renderError(err){
+    console.error(err);
+    document.getElementById('widget').innerHTML=`<div class="header"><span class="header-cross">✦</span><span class="header-date">${todayFr()}</span></div><div class="error-msg">Impossible de charger les lectures du jour.<br><small style="opacity:0.6;font-size:0.8rem">${err.message}</small></div>`;
+  }
+  fetchLiturgy().then(render).catch(renderError);
+</script>
+</body>
+</html>
+
+    
+    
+    
+  }
+
